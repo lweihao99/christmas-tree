@@ -1,319 +1,448 @@
 <!DOCTYPE html>
 <html lang="zh">
+
 <head>
-    <meta charset="UTF-8">
-    <title>Right Side Christmas Tree</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #000;
-            background: radial-gradient(circle at center, #1a0b2e 0%, #000000 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        canvas {
-            display: block;
-        }
-        #text-overlay {
-            position: absolute;
-            top: 50%;
-            /* 修改 1: 文字移到左侧 (原为 50%) */
-            left: 50%; 
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            text-align: center; /* 或者 left */
-            z-index: 10;
-        }
-        h1 {
-            font-family: 'Brush Script MT', 'Comic Sans MS', cursive;
-            color: #fff;
-            font-size: 5rem;
-            margin: 0;
-            text-shadow: 0 0 10px #fff, 0 0 20px #ff0055, 0 0 40px #ff0055;
-            animation: pulse 3s infinite ease-in-out;
-            opacity: 0.95;
-            white-space: nowrap; /* 防止文字换行 */
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
-            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Right Side Christmas Tree</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+      background: radial-gradient(circle at center, #1a0b2e 0%, #000000 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #text-overlay {
+      position: absolute;
+      top: 50%;
+      /* 修改 1: 文字移到左侧 (原为 50%) */
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      text-align: center;
+      /* 或者 left */
+      z-index: 10;
+    }
+
+    h1 {
+      font-family: 'Brush Script MT', 'Comic Sans MS', cursive;
+      color: #fff;
+      font-size: 5rem;
+      margin: 0;
+      text-shadow: 0 0 10px #fff, 0 0 20px #ff0055, 0 0 40px #ff0055;
+      animation: pulse 3s infinite ease-in-out;
+      opacity: 0.95;
+      white-space: nowrap;
+      /* 防止文字换行 */
+    }
+
+    /* 开始遮罩层 */
+    #start-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      /* 半透明黑背景 */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      /* 保证在最上层 */
+      cursor: pointer;
+      transition: opacity 1s;
+    }
+
+    .start-btn {
+      padding: 15px 30px;
+      border: 2px solid #fff;
+      color: #fff;
+      font-size: 1.5rem;
+      border-radius: 50px;
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 0 20px #ff0055;
+      animation: btnPulse 1.5s infinite;
+    }
+
+    @keyframes btnPulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 20px #ff0055;
+      }
+
+      50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 40px #ff0055;
+      }
+
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 20px #ff0055;
+      }
+    }
+
+    /* 右上角静音按钮 */
+    #music-control {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 2rem;
+      cursor: pointer;
+      z-index: 100;
+      opacity: 0;
+      /* 开始时隐藏，点击后显示 */
+      transition: opacity 1s;
+      text-shadow: 0 0 10px #fff;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 0.8;
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.05);
+      }
+    }
+  </style>
 </head>
+
 <body>
+  <!-- 音乐播放器 (隐藏) -->
+  <audio id="bgMusic" loop>
+    <source src="music2.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
 
-    <div id="text-overlay">
-        <h1>Merry Christmas</h1>
-        <h1>祝大家圣诞快乐!</h1>
-    </div>
-    <canvas id="canvas"></canvas>
+  <!-- 点击播放的遮罩层 -->
+  <div id="start-screen">
+    <div class="start-btn">🎵 点击开启圣诞音乐派对 🎵</div>
+  </div>
 
-<script>
+  <!-- 右上角的音乐控制按钮 (可选) -->
+  <div id="music-control">🔇</div>
+
+  <div id="text-overlay">
+    <h1>Merry Christmas</h1>
+    <h1>祝大家圣诞快乐!</h1>
+  </div>
+  <canvas id="canvas"></canvas>
+
+  <script>
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
     let w, h;
     let particles = [];
-    let angle = 0; 
-    
+    let angle = 0;
+
     const sparkImage = new Image();
-    sparkImage.src = 'spark.png'; 
+    sparkImage.src = 'spark.png';
 
     const CONFIG = {
-        particleCount: 5000, 
-        fov: 600,
-        spinSpeed: 0.002, 
-        colorPalette: [
-            '#ff0055', '#ff0000', '#ffcc00', '#ffffff', 
-            '#00ff88', '#006633', '#00ccff', '#d642ff'
-        ]
+      particleCount: 5000,
+      fov: 600,
+      spinSpeed: 0.002,
+      colorPalette: [
+        '#ff0055', '#ff0000', '#ffcc00', '#ffffff',
+        '#00ff88', '#006633', '#00ccff', '#d642ff'
+      ]
     };
 
-    const spriteCache = {}; 
+    const spriteCache = {};
 
     function resize() {
-        w = canvas.width = window.innerWidth;
-        h = canvas.height = window.innerHeight;
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
     }
     window.addEventListener('resize', resize);
     resize();
 
     function prepareSprites() {
-        CONFIG.colorPalette.forEach(color => createSprite(color));
-        createSprite('#ffd700'); 
-        createSprite('#ff3333'); 
-        createSprite('#228b22'); 
+      CONFIG.colorPalette.forEach(color => createSprite(color));
+      createSprite('#ffd700');
+      createSprite('#ff3333');
+      createSprite('#228b22');
     }
 
     function createSprite(color) {
-        const buffer = document.createElement('canvas');
-        const size = 32; 
-        buffer.width = size; buffer.height = size;
-        const bCtx = buffer.getContext('2d');
-        bCtx.fillStyle = color;
-        bCtx.fillRect(0, 0, size, size);
-        bCtx.globalCompositeOperation = 'destination-in';
-        bCtx.drawImage(sparkImage, 0, 0, size, size);
-        spriteCache[color] = buffer;
+      const buffer = document.createElement('canvas');
+      const size = 32;
+      buffer.width = size; buffer.height = size;
+      const bCtx = buffer.getContext('2d');
+      bCtx.fillStyle = color;
+      bCtx.fillRect(0, 0, size, size);
+      bCtx.globalCompositeOperation = 'destination-in';
+      bCtx.drawImage(sparkImage, 0, 0, size, size);
+      spriteCache[color] = buffer;
     }
 
     class Particle {
-        constructor(type) {
-            this.init(type);
+      constructor(type) {
+        this.init(type);
+      }
+
+      init(type) {
+        this.type = type;
+        this.phase = Math.random() * Math.PI * 2;
+        this.color = CONFIG.colorPalette[Math.floor(Math.random() * CONFIG.colorPalette.length)];
+
+        if (type === 'tree') {
+          const layer = Math.random();
+          const maxRadius = layer * 220;
+          const y = -300 + layer * 600;
+
+          const isCore = Math.random() < 0.4;
+
+          let radius;
+          if (isCore) {
+            radius = maxRadius * Math.sqrt(Math.random()) * 0.7;
+            this.baseSize = Math.random() * 25 + 15;
+            this.color = '#006633';
+            this.alphaFactor = 0.3;
+          } else {
+            radius = maxRadius * (0.7 + 0.3 * Math.sqrt(Math.random()));
+            this.baseSize = Math.random() * 6 + 3;
+            this.color = Math.random() > 0.6 ? '#00ff88' : '#ffffff';
+            this.alphaFactor = 1.0;
+          }
+
+          const theta = layer * Math.PI * 60 + Math.random() * 2;
+          this.x = Math.cos(theta) * radius;
+          this.y = y;
+          this.z = Math.sin(theta) * radius;
+
+        } else if (type === 'ribbon') {
+          const layer = Math.random();
+          const radius = layer * 225;
+          const y = -290 + layer * 590;
+          const theta = layer * Math.PI * 15;
+          this.x = Math.cos(theta) * radius;
+          this.y = y;
+          this.z = Math.sin(theta) * radius;
+          this.baseSize = Math.random() * 8 + 5;
+          this.color = '#ffd700';
+          this.alphaFactor = 1.0;
+
+        } else if (type === 'ornament') {
+          const layer = Math.random();
+          const radius = layer * 235;
+          const y = -280 + layer * 580;
+          const theta = Math.random() * Math.PI * 2;
+          this.x = Math.cos(theta) * radius;
+          this.y = y;
+          this.z = Math.sin(theta) * radius;
+          this.baseSize = Math.random() * 12 + 18;
+          const ballColors = ['#ff0000', '#ffd700', '#00ccff', '#ff0055'];
+          this.color = ballColors[Math.floor(Math.random() * ballColors.length)];
+          this.alphaFactor = 1.2;
+
+        } else if (type === 'floor') {
+          const theta = Math.random() * Math.PI * 2;
+          const r = 80 + Math.random() * 600;
+          this.x = Math.cos(theta) * r;
+          this.y = 320;
+          this.z = Math.sin(theta) * r;
+          this.baseSize = Math.random() * 15 + 5;
+          this.color = '#ffffff';
+          this.alphaFactor = 0.5;
+
+        } else if (type === 'topStar') {
+          const points = 10;
+          const side = Math.floor(Math.random() * points);
+          const t = Math.random();
+          const angleStep = Math.PI * 2 / points;
+          const a1 = side * angleStep - Math.PI / 2;
+          const a2 = (side + 1) * angleStep - Math.PI / 2;
+          const r1 = (side % 2 === 0) ? 55 : 25;
+          const r2 = ((side + 1) % 2 === 0) ? 55 : 25;
+          const x1 = Math.cos(a1) * r1;
+          const y1 = Math.sin(a1) * r1;
+          const x2 = Math.cos(a2) * r2;
+          const y2 = Math.sin(a2) * r2;
+          const edgeX = x1 + (x2 - x1) * t;
+          const edgeY = y1 + (y2 - y1) * t;
+          this.x = edgeX * (0.3 + 0.7 * Math.random());
+          this.y = edgeY * (0.3 + 0.7 * Math.random()) - 340;
+          this.z = (Math.random() - 0.5) * 20;
+          this.baseSize = Math.random() * 20 + 20;
+          this.color = '#ffd700';
+          this.alphaFactor = 1.2;
+
+        } else if (type === 'snow') {
+          const range = 2500;
+          this.x = (Math.random() - 0.5) * range;
+          this.y = (Math.random() - 0.5) * range;
+          this.z = (Math.random() - 0.5) * range;
+          this.vy = 1 + Math.random() * 2;
+          this.baseSize = Math.random() * 6 + 4;
+          this.color = '#ffffff';
+          this.alphaFactor = 0.6;
+
+        } else if (type === 'bgStar') {
+          const range = 4000;
+          this.x = (Math.random() - 0.5) * range;
+          this.y = (Math.random() - 0.5) * range;
+          this.z = (Math.random() - 0.5) * range;
+          this.baseSize = Math.random() * 5 + 1;
+          this.color = Math.random() < 0.5 ? '#ffffff' : '#00ccff';
+          this.alphaFactor = 0.4;
+        }
+      }
+
+      update() {
+        this.phase += 0.05;
+        if (this.type === 'snow') {
+          this.y += this.vy;
+          if (this.y > 1000) this.y = -1000;
+        }
+      }
+
+      draw(centerX, centerY, rotationAngle) {
+        let angleToUse = rotationAngle;
+        if (this.type === 'bgStar') angleToUse = rotationAngle * 0.2;
+
+        const cos = Math.cos(angleToUse);
+        const sin = Math.sin(angleToUse);
+
+        const rx = this.x * cos - this.z * sin;
+        const rz = this.z * cos + this.x * sin;
+
+        const cameraZ = rz + 800;
+        if (cameraZ <= 0) return;
+
+        const scale = CONFIG.fov / cameraZ;
+        const x2d = centerX + rx * scale;
+        const y2d = centerY + this.y * scale;
+
+        const sprite = spriteCache[this.color];
+        if (!sprite) return;
+
+        let blink = (Math.sin(this.phase) + 1) / 2;
+        let alpha = 1;
+        if (this.type === 'tree') {
+          alpha = this.alphaFactor === 1.0 ? 0.8 + blink * 0.2 : 0.4;
+        } else if (this.type === 'ribbon') {
+          alpha = 0.8 + blink * 0.2;
+        } else if (this.type === 'ornament') {
+          alpha = 0.9;
+        } else {
+          alpha = (0.5 + blink * 0.5) * this.alphaFactor;
         }
 
-        init(type) {
-            this.type = type;
-            this.phase = Math.random() * Math.PI * 2;
-            this.color = CONFIG.colorPalette[Math.floor(Math.random() * CONFIG.colorPalette.length)];
+        const size = this.baseSize * scale;
 
-            if (type === 'tree') {
-                const layer = Math.random(); 
-                const maxRadius = layer * 220;
-                const y = -300 + layer * 600; 
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(sprite, x2d - size / 2, y2d - size / 2, size, size);
+      }
 
-                const isCore = Math.random() < 0.4; 
-
-                let radius;
-                if (isCore) {
-                    radius = maxRadius * Math.sqrt(Math.random()) * 0.7;
-                    this.baseSize = Math.random() * 25 + 15; 
-                    this.color = '#006633'; 
-                    this.alphaFactor = 0.3; 
-                } else {
-                    radius = maxRadius * (0.7 + 0.3 * Math.sqrt(Math.random()));
-                    this.baseSize = Math.random() * 6 + 3; 
-                    this.color = Math.random() > 0.6 ? '#00ff88' : '#ffffff';
-                    this.alphaFactor = 1.0;
-                }
-
-                const theta = layer * Math.PI * 60 + Math.random() * 2; 
-                this.x = Math.cos(theta) * radius;
-                this.y = y;
-                this.z = Math.sin(theta) * radius;
-
-            } else if (type === 'ribbon') {
-                const layer = Math.random();
-                const radius = layer * 225; 
-                const y = -290 + layer * 590;
-                const theta = layer * Math.PI * 15; 
-                this.x = Math.cos(theta) * radius;
-                this.y = y;
-                this.z = Math.sin(theta) * radius;
-                this.baseSize = Math.random() * 8 + 5;
-                this.color = '#ffd700'; 
-                this.alphaFactor = 1.0;
-
-            } else if (type === 'ornament') {
-                const layer = Math.random();
-                const radius = layer * 235; 
-                const y = -280 + layer * 580;
-                const theta = Math.random() * Math.PI * 2;
-                this.x = Math.cos(theta) * radius;
-                this.y = y;
-                this.z = Math.sin(theta) * radius;
-                this.baseSize = Math.random() * 12 + 18; 
-                const ballColors = ['#ff0000', '#ffd700', '#00ccff', '#ff0055'];
-                this.color = ballColors[Math.floor(Math.random() * ballColors.length)];
-                this.alphaFactor = 1.2; 
-
-            } else if (type === 'floor') {
-                const theta = Math.random() * Math.PI * 2;
-                const r = 80 + Math.random() * 600; 
-                this.x = Math.cos(theta) * r;
-                this.y = 320; 
-                this.z = Math.sin(theta) * r;
-                this.baseSize = Math.random() * 15 + 5;
-                this.color = '#ffffff'; 
-                this.alphaFactor = 0.5;
-
-            } else if (type === 'topStar') {
-                const points = 10;
-                const side = Math.floor(Math.random() * points);
-                const t = Math.random(); 
-                const angleStep = Math.PI * 2 / points;
-                const a1 = side * angleStep - Math.PI / 2;
-                const a2 = (side + 1) * angleStep - Math.PI / 2;
-                const r1 = (side % 2 === 0) ? 55 : 25; 
-                const r2 = ((side + 1) % 2 === 0) ? 55 : 25;
-                const x1 = Math.cos(a1) * r1;
-                const y1 = Math.sin(a1) * r1;
-                const x2 = Math.cos(a2) * r2;
-                const y2 = Math.sin(a2) * r2;
-                const edgeX = x1 + (x2 - x1) * t;
-                const edgeY = y1 + (y2 - y1) * t;
-                this.x = edgeX * (0.3 + 0.7 * Math.random()); 
-                this.y = edgeY * (0.3 + 0.7 * Math.random()) - 340; 
-                this.z = (Math.random() - 0.5) * 20; 
-                this.baseSize = Math.random() * 20 + 20; 
-                this.color = '#ffd700';
-                this.alphaFactor = 1.2;
-
-            } else if (type === 'snow') {
-                const range = 2500;
-                this.x = (Math.random() - 0.5) * range;
-                this.y = (Math.random() - 0.5) * range; 
-                this.z = (Math.random() - 0.5) * range;
-                this.vy = 1 + Math.random() * 2; 
-                this.baseSize = Math.random() * 6 + 4;
-                this.color = '#ffffff'; 
-                this.alphaFactor = 0.6;
-
-            } else if (type === 'bgStar') {
-                const range = 4000;
-                this.x = (Math.random() - 0.5) * range;
-                this.y = (Math.random() - 0.5) * range;
-                this.z = (Math.random() - 0.5) * range;
-                this.baseSize = Math.random() * 5 + 1;
-                this.color = Math.random() < 0.5 ? '#ffffff' : '#00ccff';
-                this.alphaFactor = 0.4;
-            }
-        }
-
-        update() {
-            this.phase += 0.05;
-            if (this.type === 'snow') {
-                this.y += this.vy;
-                if (this.y > 1000) this.y = -1000;
-            }
-        }
-
-        draw(centerX, centerY, rotationAngle) {
-            let angleToUse = rotationAngle;
-            if (this.type === 'bgStar') angleToUse = rotationAngle * 0.2;
-
-            const cos = Math.cos(angleToUse);
-            const sin = Math.sin(angleToUse);
-            
-            const rx = this.x * cos - this.z * sin;
-            const rz = this.z * cos + this.x * sin;
-
-            const cameraZ = rz + 800; 
-            if (cameraZ <= 0) return; 
-
-            const scale = CONFIG.fov / cameraZ;
-            const x2d = centerX + rx * scale;
-            const y2d = centerY + this.y * scale;
-
-            const sprite = spriteCache[this.color];
-            if (!sprite) return; 
-
-            let blink = (Math.sin(this.phase) + 1) / 2;
-            let alpha = 1;
-            if (this.type === 'tree') {
-                alpha = this.alphaFactor === 1.0 ? 0.8 + blink * 0.2 : 0.4;
-            } else if (this.type === 'ribbon') {
-                alpha = 0.8 + blink * 0.2;
-            } else if (this.type === 'ornament') {
-                alpha = 0.9; 
-            } else {
-                alpha = (0.5 + blink * 0.5) * this.alphaFactor;
-            }
-
-            const size = this.baseSize * scale;
-
-            ctx.globalAlpha = alpha;
-            ctx.drawImage(sprite, x2d - size / 2, y2d - size / 2, size, size);
-        }
-        
-        getDepth(angle) {
-            const cos = Math.cos(angle);
-            const sin = Math.sin(angle);
-            return this.z * cos + this.x * sin;
-        }
+      getDepth(angle) {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        return this.z * cos + this.x * sin;
+      }
     }
 
     function init() {
-        particles = [];
-        for (let i = 0; i < 4500; i++) particles.push(new Particle('tree'));
-        for (let i = 0; i < 400; i++) particles.push(new Particle('ribbon'));
-        for (let i = 0; i < 200; i++) particles.push(new Particle('ornament'));
-        for (let i = 0; i < 500; i++) particles.push(new Particle('floor'));
-        for (let i = 0; i < 250; i++) particles.push(new Particle('topStar'));
-        for (let i = 0; i < 1000; i++) particles.push(new Particle('snow'));
-        for (let i = 0; i < 400; i++) particles.push(new Particle('bgStar'));
+      particles = [];
+      for (let i = 0; i < 4500; i++) particles.push(new Particle('tree'));
+      for (let i = 0; i < 400; i++) particles.push(new Particle('ribbon'));
+      for (let i = 0; i < 200; i++) particles.push(new Particle('ornament'));
+      for (let i = 0; i < 500; i++) particles.push(new Particle('floor'));
+      for (let i = 0; i < 250; i++) particles.push(new Particle('topStar'));
+      for (let i = 0; i < 1000; i++) particles.push(new Particle('snow'));
+      for (let i = 0; i < 400; i++) particles.push(new Particle('bgStar'));
     }
 
     function loop() {
-        ctx.clearRect(0, 0, w, h);
-        ctx.globalCompositeOperation = 'lighter'; 
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'lighter';
 
-        particles.sort((a, b) => b.getDepth(angle) - a.getDepth(angle));
+      particles.sort((a, b) => b.getDepth(angle) - a.getDepth(angle));
 
-        // 修改 2: 在这里改变绘制中心点
-        // w * 0.75 表示将中心设置在屏幕右侧 75% 的位置
-        // 如果觉得太靠右，可以改为 0.7
-        const treeCenterX = w * 0.75;
-        const treeCenterY = h / 2;
+      // 修改 2: 在这里改变绘制中心点
+      // w * 0.75 表示将中心设置在屏幕右侧 75% 的位置
+      // 如果觉得太靠右，可以改为 0.7
+      const treeCenterX = w * 0.75;
+      const treeCenterY = h / 2;
 
-        particles.forEach(p => {
-            p.update();
-            p.draw(treeCenterX, treeCenterY, angle);
-        });
+      particles.forEach(p => {
+        p.update();
+        p.draw(treeCenterX, treeCenterY, angle);
+      });
 
-        angle += CONFIG.spinSpeed;
-        requestAnimationFrame(loop);
+      angle += CONFIG.spinSpeed;
+      requestAnimationFrame(loop);
     }
 
     sparkImage.onload = () => {
-        prepareSprites();
-        init();
-        loop();
-    };
-    
-    sparkImage.onerror = () => {
-        const fCanvas = document.createElement('canvas');
-        fCanvas.width = 32; fCanvas.height = 32;
-        const fCtx = fCanvas.getContext('2d');
-        const g = fCtx.createRadialGradient(16,16,0,16,16,16);
-        g.addColorStop(0,'white'); g.addColorStop(1,'transparent');
-        fCtx.fillStyle = g; fCtx.fillRect(0,0,32,32);
-        sparkImage.src = fCanvas.toDataURL();
+      prepareSprites();
+      init();
+      loop();
     };
 
-</script>
+    sparkImage.onerror = () => {
+      const fCanvas = document.createElement('canvas');
+      fCanvas.width = 32; fCanvas.height = 32;
+      const fCtx = fCanvas.getContext('2d');
+      const g = fCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+      g.addColorStop(0, 'white'); g.addColorStop(1, 'transparent');
+      fCtx.fillStyle = g; fCtx.fillRect(0, 0, 32, 32);
+      sparkImage.src = fCanvas.toDataURL();
+    };
+
+    const music = document.getElementById('bgMusic');
+    const startScreen = document.getElementById('start-screen');
+    const musicControl = document.getElementById('music-control');
+    let isPlaying = false;
+
+    music.volume = 0.2;
+
+    // 点击屏幕开始播放
+    startScreen.addEventListener('click', () => {
+      music.play().then(() => {
+        // 播放成功
+        isPlaying = true;
+        musicControl.innerText = '🔊'; // 变成喇叭图标
+        startScreen.style.opacity = '0'; // 遮罩层淡出
+        musicControl.style.opacity = '1'; // 显示控制按钮
+
+        // 1秒后彻底移除遮罩层，防止挡住鼠标操作
+        setTimeout(() => {
+          startScreen.style.display = 'none';
+        }, 1000);
+      }).catch(err => {
+        console.log("播放失败，可能是浏览器策略限制", err);
+      });
+    });
+
+    // 右上角按钮控制开关
+    musicControl.addEventListener('click', () => {
+      if (isPlaying) {
+        music.pause();
+        musicControl.innerText = '🔇'; // 静音图标
+        isPlaying = false;
+      } else {
+        music.play();
+        musicControl.innerText = '🔊'; // 播放图标
+        isPlaying = true;
+      }
+    });
+
+  </script>
 </body>
+
 </html>
