@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Magical Christmas Night</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            /* 升级：深邃的午夜星空背景 (深蓝 -> 黑) */
+            background: radial-gradient(circle at center, #1b002a 0%, #090a1f 40%, #000000 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+        }
+        #text-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            text-align: center;
+            z-index: 10;
+        }
+        h1 {
+            font-family: 'Brush Script MT', 'Comic Sans MS', cursive;
+            color: #fff;
+            font-size: 5rem;
+            margin: 0;
+            /* 文字光晕增强 */
+            text-shadow: 
+                0 0 10px #fff,
+                0 0 20px #ff00de,
+                0 0 40px #ff00de;
+            animation: pulse 4s infinite ease-in-out;
+            opacity: 0.9;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="text-overlay">
+        <h1>Merry Christmas</h1>
+    </div>
+    <canvas id="canvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let w, h;
+    let particles = [];
+    let angle = 0; 
+    
+    // 资源加载
+    const sparkImage = new Image();
+    sparkImage.src = 'spark.png'; 
+
+    // --- 配置 ---
+    const CONFIG = {
+        particleCount: 3000,
+        fov: 600,
+        spinSpeed: 0.002, // 稍微减慢旋转，显得更优雅
+        colorPalette: [
+            '#ff0055', // 玫红
+            '#ff0000', // 红
+            '#ffcc00', // 金
+            '#ffffff', // 白
+            '#00ccff', // 冰蓝 (新增)
+            '#d642ff'  // 紫色 (新增)
+        ]
+    };
+
+    const spriteCache = {}; 
+
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- 预处理：生成颜色缓存 ---
+    function prepareSprites() {
+        CONFIG.colorPalette.forEach(color => createSprite(color));
+        createSprite('#ffd700'); // 星星专用金
+        createSprite('#ffffff'); // 雪花专用白
+    }
+
+    function createSprite(color) {
+        const buffer = document.createElement('canvas');
+        const size = 32; 
+        buffer.width = size; buffer.height = size;
+        const bCtx = buffer.getContext('2d');
+        bCtx.fillStyle = color;
+        bCtx.fillRect(0, 0, size, size);
+        bCtx.globalCompositeOperation = 'destination-in';
+        bCtx.drawImage(sparkImage, 0, 0, size, size);
+        spriteCache[color] = buffer;
+    }
+
+    // --- 粒子类 ---
+    class Particle {
+        constructor(type) {
+            this.init(type);
+        }
+
+        init(type) {
+            this.type = type;
+            this.phase = Math.random() * Math.PI * 2;
+            
+            // 默认随机色
+            this.color = CONFIG.colorPalette[Math.floor(Math.random() * CONFIG.colorPalette.length)];
+
+            if (type === 'tree') {
+                // 树身逻辑
+                const layer = Math.random(); 
+                const radius = layer * 220; 
+                const y = -300 + layer * 600; 
+                const theta = layer * Math.PI * 40 + Math.random() * 0.5; 
+                
+                this.x = Math.cos(theta) * radius;
+                this.y = y;
+                this.z = Math.sin(theta) * radius;
+                this.baseSize = Math.random() * 12 + 4;
+
+            } else if (type === 'floor') {
+                // 地板光环
+                const theta = Math.random() * Math.PI * 2;
+                const r = 80 + Math.random() * 500;
+                this.x = Math.cos(theta) * r;
+                this.y = 320; 
+                this.z = Math.sin(theta) * r;
+                this.baseSize = Math.random() * 15 + 5;
+                this.color = '#d642ff'; // 地板改为紫色系
+
+            } else if (type === 'topStar') {
+                // 树顶五角星
+                const points = 10;
+                const side = Math.floor(Math.random() * points);
+                const t = Math.random(); 
+                const angleStep = Math.PI * 2 / points;
+                const a1 = side * angleStep - Math.PI / 2;
+                const a2 = (side + 1) * angleStep - Math.PI / 2;
+                const r1 = (side % 2 === 0) ? 50 : 20;
+                const r2 = ((side + 1) % 2 === 0) ? 50 : 20;
+                const x1 = Math.cos(a1) * r1;
+                const y1 = Math.sin(a1) * r1;
+                const x2 = Math.cos(a2) * r2;
+                const y2 = Math.sin(a2) * r2;
+                const edgeX = x1 + (x2 - x1) * t;
+                const edgeY = y1 + (y2 - y1) * t;
+
+                this.x = edgeX * (0.4 + 0.6 * Math.random()); 
+                this.y = edgeY * (0.4 + 0.6 * Math.random()) - 330; 
+                this.z = (Math.random() - 0.5) * 15; 
+                this.baseSize = Math.random() * 20 + 20; 
+                this.color = '#ffd700';
+
+            } else if (type === 'snow') {
+                // --- 雪花逻辑 ---
+                // 范围大一点，覆盖全屏
+                const range = 2000;
+                this.x = (Math.random() - 0.5) * range;
+                this.y = (Math.random() - 0.5) * range; // 随机高度
+                this.z = (Math.random() - 0.5) * range;
+                
+                this.vy = 1 + Math.random() * 2; // 下落速度
+                this.baseSize = Math.random() * 8 + 4;
+                this.color = '#ffffff'; // 纯白
+
+            } else if (type === 'bgStar') {
+                // --- 背景闪光 ---
+                // 非常远的距离，作为背景
+                const range = 4000;
+                this.x = (Math.random() - 0.5) * range;
+                this.y = (Math.random() - 0.5) * range;
+                this.z = (Math.random() - 0.5) * range;
+                this.baseSize = Math.random() * 6 + 2;
+                this.color = Math.random() < 0.5 ? '#ffffff' : '#00ccff';
+            }
+        }
+
+        update() {
+            this.phase += 0.05;
+
+            // 雪花运动逻辑
+            if (this.type === 'snow') {
+                this.y += this.vy;
+                // 如果落到下面了，回到最上面
+                if (this.y > 1000) {
+                    this.y = -1000;
+                }
+            }
+        }
+
+        draw(centerX, centerY, rotationAngle) {
+            // 背景星星和雪花也可以参与旋转，显得摄像机在绕着场景转
+            let angleToUse = rotationAngle;
+            
+            // 如果不想让背景转太快，可以乘以一个系数，或者设为0
+            if (this.type === 'bgStar') angleToUse = rotationAngle * 0.5;
+
+            const cos = Math.cos(angleToUse);
+            const sin = Math.sin(angleToUse);
+            
+            const rx = this.x * cos - this.z * sin;
+            const rz = this.z * cos + this.x * sin;
+
+            const cameraZ = rz + 800; // 稍微拉远一点视角
+            if (cameraZ <= 0) return; 
+
+            const scale = CONFIG.fov / cameraZ;
+            const x2d = centerX + rx * scale;
+            const y2d = centerY + this.y * scale;
+
+            const sprite = spriteCache[this.color];
+            if (!sprite) return; 
+
+            // 根据类型调整透明度
+            let alpha = (Math.sin(this.phase) + 1) / 2 * 0.8 + 0.2;
+            
+            if (this.type === 'snow') alpha = 0.6; // 雪花柔和一点
+            if (this.type === 'bgStar') alpha = alpha * 0.5; // 背景星星暗一点
+
+            const size = this.baseSize * scale;
+
+            ctx.globalAlpha = alpha;
+            ctx.drawImage(sprite, x2d - size / 2, y2d - size / 2, size, size);
+        }
+        
+        getDepth(angle) {
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            return this.z * cos + this.x * sin;
+        }
+    }
+
+    function init() {
+        particles = [];
+        // 1. 树身
+        for (let i = 0; i < 2000; i++) particles.push(new Particle('tree'));
+        // 2. 地板
+        for (let i = 0; i < 400; i++) particles.push(new Particle('floor'));
+        // 3. 树顶星星
+        for (let i = 0; i < 300; i++) particles.push(new Particle('topStar'));
+        // 4. 雪花 (新增)
+        for (let i = 0; i < 400; i++) particles.push(new Particle('snow'));
+        // 5. 背景星星 (新增)
+        for (let i = 0; i < 200; i++) particles.push(new Particle('bgStar'));
+    }
+
+    function loop() {
+        ctx.clearRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'lighter'; // 发光模式
+
+        // 排序：保证遮挡关系正确（特别是雪花飘在树前面时）
+        particles.sort((a, b) => b.getDepth(angle) - a.getDepth(angle));
+
+        particles.forEach(p => {
+            p.update();
+            p.draw(w / 2, h / 2, angle);
+        });
+
+        angle += CONFIG.spinSpeed;
+        requestAnimationFrame(loop);
+    }
+
+    // --- 启动 ---
+    sparkImage.onload = () => {
+        prepareSprites();
+        init();
+        loop();
+    };
+
+    sparkImage.onerror = () => {
+        const fCanvas = document.createElement('canvas');
+        fCanvas.width = 32; fCanvas.height = 32;
+        const fCtx = fCanvas.getContext('2d');
+        const g = fCtx.createRadialGradient(16,16,0,16,16,16);
+        g.addColorStop(0,'white'); g.addColorStop(1,'transparent');
+        fCtx.fillStyle = g; fCtx.fillRect(0,0,32,32);
+        sparkImage.src = fCanvas.toDataURL();
+    };
+
+</script>
+</body>
+</html>
